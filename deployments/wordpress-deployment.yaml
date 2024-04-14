@@ -1,0 +1,113 @@
+# wordpress-deployment.yaml
+
+# Define a secret to store MySQL and WordPress credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+type: Opaque
+data:
+  mysql-root-password: <Base64-encoded MySQL root password or secret from another secret manager>
+  mysql-user: <Base64-encoded MySQL username or secret from another secret manager>
+  mysql-password: <Base64-encoded MySQL password or secret from another secret manager>
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: wordpress-secret
+type: Opaque
+data:
+  wordpress-password: <Base64-encoded WordPress password  or secret from another secret manager>
+
+# Define a ConfigMap for WordPress configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wordpress-config
+data:
+  wordpress-email: admin@example.com
+  wordpress-first-name: Admin
+  wordpress-last-name: User
+  wordpress-blog-name: My WordPress Blog
+
+# Define the WordPress Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress
+spec:
+  selector:
+    app: wordpress
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: NodePort # Expose the service externally using NodePort
+
+# Define the WordPress Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wordpress
+  template:
+    metadata:
+      labels:
+        app: wordpress
+    spec:
+      containers:
+        - name: wordpress
+          image: bitnami/wordpress:latest
+          env:
+            - name: WORDPRESS_USERNAME
+              value: admin
+            - name: WORDPRESS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-secret
+                  key: wordpress-password
+            - name: WORDPRESS_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-password
+            - name: WORDPRESS_EMAIL
+              valueFrom:
+                configMapKeyRef:
+                  name: wordpress-config
+                  key: wordpress-email
+            - name: WORDPRESS_FIRST_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: wordpress-config
+                  key: wordpress-first-name
+            - name: WORDPRESS_LAST_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: wordpress-config
+                  key: wordpress-last-name
+            - name: WORDPRESS_BLOG_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: wordpress-config
+                  key: wordpress-blog-name
+            - name: WORDPRESS_DB_HOST
+              value: mysql
+            - name: WORDPRESS_DB_NAME
+              value: wordpress
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-user
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-password
+          ports:
+            - containerPort: 80
